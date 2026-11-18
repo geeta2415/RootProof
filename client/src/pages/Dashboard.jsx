@@ -15,7 +15,12 @@ export default function Dashboard() {
       <h2>Welcome, {user?.name}</h2>
       <p>You are logged in as: <strong>{user?.role}</strong></p>
 
-      {user?.role === 'business' && <p>Business area: browse and buy projects (coming soon).</p>}
+      {user?.role === 'business' && (
+        <div>
+          <p>Business area: browse and buy projects.</p>
+          <button onClick={() => navigate('/browse')}>Browse projects</button>
+        </div>
+      )}
       {user?.role === 'owner' && <p>Owner area: manage your projects (coming soon).</p>}
       {user?.role === 'verifier' && <p>Verifier area: review proofs (coming soon).</p>}
 
