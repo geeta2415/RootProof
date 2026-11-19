@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getUser, clearSession } from '../api';
 
 export default function Dashboard() {
@@ -18,10 +18,11 @@ export default function Dashboard() {
       {user?.role === 'business' && (
         <div>
           <p>Business area: browse and buy projects.</p>
-          <button onClick={() => navigate('/browse')}>Browse projects</button>
+          <button onClick={() => navigate('/browse')}>Browse projects</button>{' '}
+          <button onClick={() => navigate('/purchases/mine')}>My purchases</button>
         </div>
       )}
-      {user?.role === 'owner' && <p>Owner area: manage your projects (coming soon).</p>}
+      {user?.role === 'owner' && <p><Link to="/my-projects">Manage my projects</Link></p>}
       {user?.role === 'verifier' && <p>Verifier area: review proofs (coming soon).</p>}
 
       <button onClick={handleLogout}>Log out</button>
