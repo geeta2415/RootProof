@@ -8,6 +8,7 @@ import ProjectDetails from './pages/ProjectDetails';
 import PurchaseConfirm from './pages/PurchaseConfirm';
 import PurchaseHistory from './pages/PurchaseHistory';
 import MyProjects from './pages/MyProjects';
+import VerifierQueue from './pages/VerifierQueue';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/purchase/confirm" element={<ProtectedRoute><PurchaseConfirm /></ProtectedRoute>} />
         <Route path="/purchases/mine" element={<ProtectedRoute><PurchaseHistory /></ProtectedRoute>} />
         <Route path="/my-projects" element={<ProtectedRoute><MyProjects /></ProtectedRoute>} />
+        <Route path="/verifier/queue" element={<ProtectedRoute roles={['verifier']}><VerifierQueue /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
