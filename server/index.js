@@ -6,6 +6,7 @@ const authRoutes = require('./routes/auth');
 const browseRoutes = require('./routes/browse');
 const purchaseRoutes = require('./routes/purchases');
 const projectRoutes = require('./routes/projects');
+const verifierRoutes = require('./routes/verifier');
 const pool = require('./db');
 
 const app = express();
@@ -15,6 +16,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/browse', browseRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/verifier', verifierRoutes);
+
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'RootProof API' });
