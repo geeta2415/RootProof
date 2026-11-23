@@ -7,6 +7,7 @@ const browseRoutes = require('./routes/browse');
 const purchaseRoutes = require('./routes/purchases');
 const projectRoutes = require('./routes/projects');
 const pool = require('./db');
+const ownerRoutes = require('./routes/owner');
 
 const app = express();
 app.use(cors());
@@ -15,6 +16,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/browse', browseRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/owner', ownerRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'RootProof API' });
