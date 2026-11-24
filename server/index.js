@@ -8,6 +8,7 @@ const purchaseRoutes = require('./routes/purchases');
 const projectRoutes = require('./routes/projects');
 const verifierRoutes = require('./routes/verifier');
 const pool = require('./db');
+const ownerRoutes = require('./routes/owner');
 
 const app = express();
 app.use(cors());
@@ -18,6 +19,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/verifier', verifierRoutes);
 
+app.use('/api/owner', ownerRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', app: 'RootProof API' });
