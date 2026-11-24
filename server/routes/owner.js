@@ -91,4 +91,34 @@ router.post('/purchases/:id/proof', authenticate, requireRole('owner'), readFile
   }
 });
 
+
+router.get('/purchases', authenticate, requireRole('owner'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT pr.id,
+              op.title AS project_title,
+              u.name AS business_name,
+              pr.units_purchased,
+              op.unit_label,
+              pr.status,
+              pr.purchase_date,
+              pr.certificate_url,
+              (SELECT COUNT(*)::int FROM verification_submissions vs
+                WHERE vs.purchase_id = pr.id) AS attempts,
+              (SELECT vs.rejection_reason FROM verification_submissions vs
+                WHERE vs.purchase_id = pr.id AND vs.status = 'rejected'
+                ORDER BY vs.reviewed_at DESC LIMIT 1) AS last_rejection_reason
+         FROM purchase_records pr
+         JOIN offset_projects op ON op.id = pr.project_id
+         JOIN users u ON u.id = pr.business_id
+        WHERE op.owner_id = $1
+        ORDER BY pr.purchase_date DESC`,
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 module.exports = router;
