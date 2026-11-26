@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { generateCertificate } = require('../services/certificate');
 
 const router = express.Router();
 
@@ -106,6 +107,55 @@ router.get('/mine', authenticate, requireRole('business'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load purchases' });
+  }
+});
+// GET /api/purchases/:purchaseId/certificate
+router.get('/:purchaseId/certificate', authenticate, requireRole('business'), async (req, res) => {
+  const { purchaseId } = req.params;
+
+  if (!UUID_RE.test(purchaseId)) {
+    return res.status(400).json({ error: 'A valid purchase ID is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, status, certificate_url
+         FROM purchase_records
+        WHERE id = $1 AND business_id = $2`,
+      [purchaseId, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Purchase not found' });
+    }
+
+    const purchase = result.rows[0];
+
+    if (!['verified', 'certified'].includes(purchase.status)) {
+      return res.status(409).json({ error: 'A certificate is available only for verified purchases' });
+    }
+
+    let certificateUrl = purchase.certificate_url;
+
+    if (!certificateUrl) {
+      certificateUrl = await generateCertificate(purchaseId);
+
+      await pool.query(
+        `UPDATE purchase_records
+            SET certificate_url = $1
+          WHERE id = $2 AND business_id = $3`,
+        [certificateUrl, purchaseId, req.user.id]
+      );
+    }
+
+    res.json({ certificateUrl });
+  } catch (err) {
+    const statusCode = err.statusCode || 500;
+    if (statusCode === 500) console.error('Certificate generation failed:', err);
+
+    res.status(statusCode).json({
+      error: statusCode === 500 ? 'Failed to generate certificate' : err.message,
+    });
   }
 });
 
