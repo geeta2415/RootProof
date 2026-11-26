@@ -66,5 +66,91 @@ router.get('/submissions/:id', authenticate, requireRole('verifier'), async (req
     res.status(500).json({ error: 'Failed to load submission' });
   }
 });
+// US-23: approve a submission
+router.post('/submissions/:id/approve', authenticate, requireRole('verifier'), async (req, res) => {
+  const { id } = req.params;
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return res.status(404).json({ error: 'Submission not found' });
+  }
 
+  const client = await pool.connect();
+  let purchaseId;
+  try {
+    await client.query('BEGIN');
+
+    const found = await client.query(
+      `SELECT s.id, s.status AS submission_status, s.purchase_id,
+              pr.status AS purchase_status
+         FROM verification_submissions s
+         JOIN purchase_records pr ON pr.id = s.purchase_id
+        WHERE s.id = $1
+          FOR UPDATE OF s, pr`,
+      [id]
+    );
+
+    if (found.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    const row = found.rows[0];
+    if (row.submission_status !== 'pending' || row.purchase_status !== 'under_review') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'This submission cannot be approved' });
+    }
+
+    purchaseId = row.purchase_id;
+
+    await client.query(
+      `UPDATE verification_submissions
+          SET status = 'approved', verifier_id = $1, reviewed_at = NOW()
+        WHERE id = $2`,
+      [req.user.id, id]
+    );
+    await client.query(
+      `UPDATE purchase_records SET status = 'verified' WHERE id = $1`,
+      [purchaseId]
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(err);
+    return res.status(500).json({ error: 'Approval failed' });
+  } finally {
+    client.release();
+  }
+
+  // Certificate step (Sausan's function). If it is missing or fails,
+  // the purchase stays verified and the verifier can retry.
+  let generateCertificate = null;
+  try {
+    ({ generateCertificate } = require('../services/certificate'));
+  } catch (e) {
+    generateCertificate = null;
+  }
+
+  if (!generateCertificate) {
+    return res.json({
+      purchaseId,
+      status: 'verified',
+      certificateUrl: null,
+      note: 'Certificate service is not available yet',
+    });
+  }
+
+  try {
+    const certificateUrl = await generateCertificate(purchaseId);
+    await pool.query(
+      `UPDATE purchase_records SET certificate_url = $1, status = 'certified' WHERE id = $2`,
+      [certificateUrl, purchaseId]
+    );
+    res.json({ purchaseId, status: 'certified', certificateUrl });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: 'Approved, but the certificate failed. The purchase stays verified; retry later.',
+    });
+  }
+});
 module.exports = router;
