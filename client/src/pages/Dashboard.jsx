@@ -23,6 +23,7 @@ export default function Dashboard() {
         </div>
       )}
       {user?.role === 'owner' && <p><Link to="/my-projects">Manage my projects</Link></p>}
+      {user?.role === 'owner' && <p><Link to="/owner/purchases">Purchases and proof uploads</Link></p>}
 {user?.role === 'verifier' && <p><Link to="/verifier/queue">Review pending submissions</Link></p>}
       <button onClick={handleLogout}>Log out</button>
     </div>
