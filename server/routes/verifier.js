@@ -153,4 +153,90 @@ router.post('/submissions/:id/approve', authenticate, requireRole('verifier'), a
     });
   }
 });
+// US-24: reject a submission with a written reason
+router.post('/submissions/:id/reject', authenticate, requireRole('verifier'), async (req, res) => {
+  const { id } = req.params;
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return res.status(404).json({ error: 'Submission not found' });
+  }
+  if (!reason) {
+    return res.status(400).json({ error: 'A written reason is required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const found = await client.query(
+      `SELECT s.id, s.status AS submission_status, s.purchase_id,
+              pr.status AS purchase_status
+         FROM verification_submissions s
+         JOIN purchase_records pr ON pr.id = s.purchase_id
+        WHERE s.id = $1
+          FOR UPDATE OF s, pr`,
+      [id]
+    );
+
+    if (found.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    const row = found.rows[0];
+    if (row.submission_status !== 'pending' || row.purchase_status !== 'under_review') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'This submission cannot be rejected' });
+    }
+
+    await client.query(
+      `UPDATE verification_submissions
+          SET status = 'rejected', rejection_reason = $1, verifier_id = $2, reviewed_at = NOW()
+        WHERE id = $3`,
+      [reason, req.user.id, id]
+    );
+
+    const count = await client.query(
+      `SELECT COUNT(*)::int AS n
+         FROM verification_submissions
+        WHERE purchase_id = $1 AND status = 'rejected'`,
+      [row.purchase_id]
+    );
+
+    let purchaseStatus;
+    if (count.rows[0].n >= 2) {
+      // Second rejection: cancel the purchase and return the units,
+      // inside this same transaction (Sausan's function).
+      let cancelPurchase = null;
+      try {
+        ({ cancelPurchase } = require('../services/cancel'));
+      } catch (e) {
+        cancelPurchase = null;
+      }
+      if (!cancelPurchase) {
+        await client.query('ROLLBACK');
+        return res.status(503).json({ error: 'Cancel service is not available yet' });
+      }
+      await cancelPurchase(row.purchase_id, client);
+      purchaseStatus = 'cancelled';
+    } else {
+      // First rejection: back to pending so the owner can upload again.
+      await client.query(
+        `UPDATE purchase_records SET status = 'pending' WHERE id = $1`,
+        [row.purchase_id]
+      );
+      purchaseStatus = 'pending';
+    }
+
+    await client.query('COMMIT');
+    res.json({ purchaseId: row.purchase_id, purchaseStatus });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(err);
+    res.status(500).json({ error: 'Rejection failed' });
+  } finally {
+    client.release();
+  }
+});
 module.exports = router;
