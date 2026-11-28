@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
+const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -68,5 +69,51 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+router.post('/change-password', authenticate, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+
+  if (typeof currentPassword !== 'string' || !currentPassword ||
+      typeof newPassword !== 'string' || !newPassword) {
+    return res.status(400).json({ error: 'Current and new passwords are required' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const matches = await bcrypt.compare(
+      currentPassword,
+      result.rows[0].password_hash
+    );
+
+    if (!matches) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [passwordHash, req.user.id]
+    );
+
+    return res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Change-password request failed:', err.message);
+    return res.status(500).json({ error: 'Could not change password' });
+  }
+});
+
+
+
 
 module.exports = router;
