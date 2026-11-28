@@ -66,14 +66,14 @@ export default function PurchaseHistory() {
               <p>Quantity: {purchase.units_purchased} {purchase.unit_label}</p>
               <p>Total: {Number(purchase.total_cost).toFixed(2)}</p>
               <p>Status: <strong>{purchase.status}</strong></p>
-              {['verified', 'certified'].includes(purchase.status) && (
+              {purchase.certificate_url  && (
               <button
                 type="button"
                 onClick={() => downloadCertificate(purchase.id)}
                 disabled={downloadingId === purchase.id}
               >
                 {downloadingId === purchase.id
-                  ? 'Preparing certificate...'
+                  ? 'Opening certificate...'
                   : 'Download certificate'}
               </button>
             )}

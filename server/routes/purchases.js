@@ -1,8 +1,6 @@
 const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
-const { generateCertificate } = require('../services/certificate');
-
 const router = express.Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -119,7 +117,7 @@ router.get('/:purchaseId/certificate', authenticate, requireRole('business'), as
 
   try {
     const result = await pool.query(
-      `SELECT id, status, certificate_url
+      `SELECT certificate_url
          FROM purchase_records
         WHERE id = $1 AND business_id = $2`,
       [purchaseId, req.user.id]
@@ -129,34 +127,15 @@ router.get('/:purchaseId/certificate', authenticate, requireRole('business'), as
       return res.status(404).json({ error: 'Purchase not found' });
     }
 
-    const purchase = result.rows[0];
-
-    if (!['verified', 'certified'].includes(purchase.status)) {
-      return res.status(409).json({ error: 'A certificate is available only for verified purchases' });
-    }
-
-    let certificateUrl = purchase.certificate_url;
-
+    const certificateUrl = result.rows[0].certificate_url;
     if (!certificateUrl) {
-      certificateUrl = await generateCertificate(purchaseId);
-
-      await pool.query(
-        `UPDATE purchase_records
-            SET certificate_url = $1
-          WHERE id = $2 AND business_id = $3`,
-        [certificateUrl, purchaseId, req.user.id]
-      );
+      return res.status(409).json({ error: 'Certificate not ready yet' });
     }
 
-    res.json({ certificateUrl });
+    return res.json({ certificateUrl });
   } catch (err) {
-    const statusCode = err.statusCode || 500;
-    if (statusCode === 500) console.error('Certificate generation failed:', err);
-
-    res.status(statusCode).json({
-      error: statusCode === 500 ? 'Failed to generate certificate' : err.message,
-    });
+    console.error('Certificate lookup failed:', err);
+    return res.status(500).json({ error: 'Failed to load certificate' });
   }
 });
-
 module.exports = router;
