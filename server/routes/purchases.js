@@ -1,7 +1,6 @@
 const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
-
 const router = express.Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -108,5 +107,35 @@ router.get('/mine', authenticate, requireRole('business'), async (req, res) => {
     res.status(500).json({ error: 'Failed to load purchases' });
   }
 });
+// GET /api/purchases/:purchaseId/certificate
+router.get('/:purchaseId/certificate', authenticate, requireRole('business'), async (req, res) => {
+  const { purchaseId } = req.params;
 
+  if (!UUID_RE.test(purchaseId)) {
+    return res.status(400).json({ error: 'A valid purchase ID is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT certificate_url
+         FROM purchase_records
+        WHERE id = $1 AND business_id = $2`,
+      [purchaseId, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Purchase not found' });
+    }
+
+    const certificateUrl = result.rows[0].certificate_url;
+    if (!certificateUrl) {
+      return res.status(409).json({ error: 'Certificate not ready yet' });
+    }
+
+    return res.json({ certificateUrl });
+  } catch (err) {
+    console.error('Certificate lookup failed:', err);
+    return res.status(500).json({ error: 'Failed to load certificate' });
+  }
+});
 module.exports = router;
