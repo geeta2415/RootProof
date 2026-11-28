@@ -11,6 +11,7 @@ import MyProjects from './pages/MyProjects';
 import VerifierQueue from './pages/VerifierQueue';
 import OwnerPurchases from './pages/OwnerPurchases';
 import VerifierReview from './pages/VerifierReview';
+import ChangePassword from './pages/ChangePassword';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/verifier/queue" element={<ProtectedRoute roles={['verifier']}><VerifierQueue /></ProtectedRoute>} />
         <Route path="/verifier/review/:id" element={<ProtectedRoute roles={['verifier']}><VerifierReview /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>}/>
       </Routes>
     </BrowserRouter>
   );
